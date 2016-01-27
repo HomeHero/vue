@@ -1,6 +1,6 @@
 import { compileRegex } from './parsers/text'
 
-let delimiters = ['{{', '}}']
+let delimiters = ['${', '}']
 let unsafeDelimiters = ['{{{', '}}}']
 
 const config = {

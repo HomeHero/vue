@@ -434,6 +434,7 @@
         copies[i]();
       }
     }
+
     /* istanbul ignore if */
     if (typeof MutationObserver !== 'undefined') {
       var counter = 1;
@@ -447,7 +448,11 @@
         textNode.data = counter;
       };
     } else {
-      timerFunc = setTimeout;
+      // webpack attempts to inject a shim for setImmediate
+      // if it is used as a global, so we have to work around that to
+      // avoid bundling unnecessary code.
+      var context = inBrowser ? window : typeof global !== 'undefined' ? global : {};
+      timerFunc = context.setImmediate || setTimeout;
     }
     return function (cb, ctx) {
       var func = ctx ? function () {
@@ -866,7 +871,7 @@
     tokensToExp: tokensToExp
   });
 
-  var delimiters = ['{{', '}}'];
+  var delimiters = ['${', '}'];
   var unsafeDelimiters = ['{{{', '}}}'];
 
   var config = Object.defineProperties({
@@ -1477,7 +1482,7 @@
           // Chrome returns unknown for several HTML5 elements.
           // https://code.google.com/p/chromium/issues/detail?id=540526
           !/^(data|time|rtc|rb)$/.test(tag)) {
-            warn('Unknown custom element: <' + tag + '> - did you ' + 'register the component correctly?');
+            warn('Unknown custom element: <' + tag + '> - did you ' + 'register the component correctly? For recursive components, ' + 'make sure to provide the "name" option.');
           }
         }
       }
@@ -2388,6 +2393,13 @@
       // push self into parent / transclusion host
       if (this.$parent) {
         this.$parent.$children.push(this);
+      }
+
+      // save raw constructor data before merge
+      // so that we know which properties are provided at
+      // instantiation.
+      if ('development' !== 'production') {
+        this._runtimeData = options.data;
       }
 
       // merge options.
@@ -3483,9 +3495,6 @@
     if (!testEl) {
       testEl = document.createElement('div');
     }
-    if (camel in testEl.style) {
-      return prop;
-    }
     var i = prefixes.length;
     var prefixed;
     while (i--) {
@@ -3493,6 +3502,9 @@
       if (prefixed in testEl.style) {
         return prefixes[i] + prop;
       }
+    }
+    if (camel in testEl.style) {
+      return prop;
     }
   }
 
@@ -3604,9 +3616,9 @@
           }
           setClass(el, value);
         } else if (xlinkRE.test(attr)) {
-          el.setAttributeNS(xlinkNS, attr, value);
+          el.setAttributeNS(xlinkNS, attr, value === true ? '' : value);
         } else {
-          el.setAttribute(attr, value);
+          el.setAttribute(attr, value === true ? '' : value);
         }
       } else {
         el.removeAttribute(attr);
@@ -3620,7 +3632,7 @@
     tab: 9,
     enter: 13,
     space: 32,
-    'delete': 46,
+    'delete': [8, 46],
     up: 38,
     left: 37,
     right: 39,
@@ -3641,6 +3653,7 @@
       }
       return keyCodes[key];
     });
+    codes = [].concat.apply([], codes);
     return function keyHandler(e) {
       if (codes.indexOf(e.keyCode) > -1) {
         return handler.call(this, e);
@@ -4005,9 +4018,10 @@
       // jQuery variable in tests.
       this.hasjQuery = typeof jQuery === 'function';
       if (this.hasjQuery) {
-        jQuery(el).on('change', this.listener);
+        var method = jQuery.fn.on ? 'on' : 'bind';
+        jQuery(el)[method]('change', this.listener);
         if (!lazy) {
-          jQuery(el).on('input', this.listener);
+          jQuery(el)[method]('input', this.listener);
         }
       } else {
         this.on('change', this.listener);
@@ -4041,8 +4055,9 @@
     unbind: function unbind() {
       var el = this.el;
       if (this.hasjQuery) {
-        jQuery(el).off('change', this.listener);
-        jQuery(el).off('input', this.listener);
+        var method = jQuery.fn.off ? 'off' : 'unbind';
+        jQuery(el)[method]('change', this.listener);
+        jQuery(el)[method]('input', this.listener);
       }
     }
   };
@@ -6373,7 +6388,7 @@
   // special binding prefixes
   var bindRE = /^v-bind:|^:/;
   var onRE = /^v-on:|^@/;
-  var argRE = /:(.*)$/;
+  var dirAttrRE = /^v-([^:]+)(?:$|:(.*)$)/;
   var modifierRE = /\.[^\.]+/g;
   var transitionRE = /^(v-bind:|:)?transition$/;
 
@@ -6535,7 +6550,6 @@
    *
    * If this is a fragment instance, we only need to compile 1.
    *
-   * @param {Vue} vm
    * @param {Element} el
    * @param {Object} options
    * @param {Object} contextOptions
@@ -6970,7 +6984,7 @@
   function compileDirectives(attrs, options) {
     var i = attrs.length;
     var dirs = [];
-    var attr, name, value, rawName, rawValue, dirName, arg, modifiers, dirDef, tokens;
+    var attr, name, value, rawName, rawValue, dirName, arg, modifiers, dirDef, tokens, matched;
     while (i--) {
       attr = attrs[i];
       name = rawName = attr.name;
@@ -7021,14 +7035,9 @@
             } else
 
               // normal directives
-              if (name.indexOf('v-') === 0) {
-                // check arg
-                arg = (arg = name.match(argRE)) && arg[1];
-                if (arg) {
-                  name = name.replace(argRE, '');
-                }
-                // extract directive name
-                dirName = name.slice(2);
+              if (matched = name.match(dirAttrRE)) {
+                dirName = matched[1];
+                arg = matched[2];
 
                 // skip v-else (when used with v-show)
                 if (dirName === 'else') {
@@ -7336,10 +7345,15 @@
       var propsData = this._data;
       var optionsDataFn = this.$options.data;
       var optionsData = optionsDataFn && optionsDataFn();
+      var runtimeData;
+      if ('development' !== 'production') {
+        runtimeData = (typeof this._runtimeData === 'function' ? this._runtimeData() : this._runtimeData) || {};
+        this._runtimeData = null;
+      }
       if (optionsData) {
         this._data = optionsData;
         for (var prop in propsData) {
-          if ('development' !== 'production' && hasOwn(optionsData, prop)) {
+          if ('development' !== 'production' && hasOwn(optionsData, prop) && !hasOwn(runtimeData, prop)) {
             warn('Data field "' + prop + '" is already defined ' + 'as a prop. Use prop default value instead.');
           }
           if (this._props[prop].raw !== null || !hasOwn(optionsData, prop)) {
@@ -8005,7 +8019,6 @@
      * Otherwise we need to call transclude/compile/link here.
      *
      * @param {Element} el
-     * @return {Element}
      */
 
     Vue.prototype._compile = function (el) {
@@ -8063,7 +8076,6 @@
 
       this._isCompiled = true;
       this._callHook('compiled');
-      return el;
     };
 
     /**
@@ -8363,8 +8375,8 @@
       }
       var name = extendOptions.name || Super.options.name;
       if ('development' !== 'production') {
-        if (!/^[a-zA-Z][\w-]+$/.test(name)) {
-          warn('Invalid component name: ' + name);
+        if (!/^[a-zA-Z][\w-]*$/.test(name)) {
+          warn('Invalid component name: "' + name + '". Component names ' + 'can only contain alphanumeric characaters and the hyphen.');
           name = null;
         }
       }
