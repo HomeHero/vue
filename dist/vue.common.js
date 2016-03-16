@@ -870,7 +870,7 @@ var text = Object.freeze({
   tokensToExp: tokensToExp
 });
 
-var delimiters = ['${', '}}'];
+var delimiters = ['${', '}'];
 var unsafeDelimiters = ['{{{', '}}}'];
 
 var config = Object.defineProperties({
