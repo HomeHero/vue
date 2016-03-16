@@ -2,12 +2,10 @@ var _ = require('src/util')
 var Vue = require('src')
 
 describe('Component', function () {
-
   var el
   beforeEach(function () {
     el = document.createElement('div')
     document.body.appendChild(el)
-    spyWarns()
   })
 
   afterEach(function () {
@@ -282,6 +280,35 @@ describe('Component', function () {
     })
   })
 
+  it('multiple activate hooks', function (done) {
+    var mixinSpy = jasmine.createSpy('mixin activate')
+    new Vue({
+      el: el,
+      template: '<view-a></view-a>',
+      components: {
+        'view-a': {
+          template: 'AAA',
+          mixins: [{
+            activate: function (done) {
+              expect(el.textContent).toBe('')
+              mixinSpy()
+              done()
+            }
+          }],
+          activate: function (ready) {
+            setTimeout(function () {
+              expect(mixinSpy).toHaveBeenCalled()
+              expect(el.textContent).toBe('')
+              ready()
+              expect(el.textContent).toBe('AAA')
+              done()
+            }, 0)
+          }
+        }
+      }
+    })
+  })
+
   it('activate hook for dynamic components', function (done) {
     var next
     var vm = new Vue({
@@ -491,7 +518,7 @@ describe('Component', function () {
     new Vue({
       el: el
     })
-    expect(hasWarned('cannot mount component "test" on already mounted element')).toBe(true)
+    expect('cannot mount component "test" on already mounted element').toHaveBeenWarned()
   })
 
   it('not found component should not throw', function () {
@@ -501,5 +528,16 @@ describe('Component', function () {
         template: '<div is="non-existent"></div>'
       })
     }).not.toThrow()
+  })
+
+  it('warn possible camelCase components', function () {
+    new Vue({
+      el: document.createElement('div'),
+      template: '<HelloWorld></HelloWorld>',
+      components: {
+        'hello-world': {}
+      }
+    })
+    expect('did you mean <hello-world>?').toHaveBeenWarned()
   })
 })

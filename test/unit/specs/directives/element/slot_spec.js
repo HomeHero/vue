@@ -1,8 +1,7 @@
 var Vue = require('src')
-var _ = require('src/util')
+var nextTick = Vue.nextTick
 
 describe('Slot Distribution', function () {
-
   var el, vm, options
   beforeEach(function () {
     el = document.createElement('div')
@@ -133,14 +132,14 @@ describe('Slot Distribution', function () {
     expect(el.lastChild.textContent).toBe('fallback c')
   })
 
-  it('should accept expressions in selectors', function () {
+  it('should warn expressions in slot names', function () {
     el.innerHTML = '<p>one</p><p slot="two">two</p>'
     options.template = '<slot :name="theName"></slot>'
     options.data = {
       theName: 'two'
     }
     mount()
-    expect(el.innerHTML).toBe('<p slot="two">two</p>')
+    expect('slot names cannot be dynamic').toHaveBeenWarned()
   })
 
   it('content should be dynamic and compiled in parent scope', function (done) {
@@ -158,7 +157,7 @@ describe('Slot Distribution', function () {
     })
     expect(el.innerHTML).toBe('<test>hello</test>')
     vm.msg = 'what'
-    _.nextTick(function () {
+    nextTick(function () {
       expect(el.innerHTML).toBe('<test>what</test>')
       done()
     })
@@ -182,34 +181,19 @@ describe('Slot Distribution', function () {
     })
     expect(el.textContent).toBe('12')
     vm.a = 2
-    _.nextTick(function () {
+    nextTick(function () {
       expect(el.textContent).toBe('22')
       vm.show = false
-      _.nextTick(function () {
+      nextTick(function () {
         expect(el.textContent).toBe('')
         vm.show = true
         vm.a = 3
-        _.nextTick(function () {
+        nextTick(function () {
           expect(el.textContent).toBe('32')
           done()
         })
       })
     })
-  })
-
-  it('inline v-for', function () {
-    el.innerHTML = '<p slot="1">1</p><p slot="2">2</p><p slot="3">3</p>'
-    new Vue({
-      el: el,
-      template: '<div v-for="n in list"><slot :name="$index + 1"></slot></div>',
-      data: {
-        list: 0
-      },
-      beforeCompile: function () {
-        this.list = this.$options._content.querySelectorAll('p').length
-      }
-    })
-    expect(el.innerHTML).toBe('<div><p slot="1">1</p></div><div><p slot="2">2</p></div><div><p slot="3">3</p></div>')
   })
 
   it('v-for + component + parent directive + transclusion', function (done) {
@@ -237,7 +221,7 @@ describe('Slot Distribution', function () {
     markup = vm.list.map(function (item) {
       return '<div class="child parent">' + item.a + ' ho</div>'
     }).join('')
-    _.nextTick(function () {
+    nextTick(function () {
       expect(el.innerHTML).toBe(markup)
       done()
     })
@@ -266,7 +250,7 @@ describe('Slot Distribution', function () {
       '</testb></testa>'
     )
     vm.list.push(3)
-    _.nextTick(function () {
+    nextTick(function () {
       expect(el.innerHTML).toBe(
         '<testa><testb>' +
           '<div>1</div><div>2</div><div>3</div>' +
@@ -297,7 +281,7 @@ describe('Slot Distribution', function () {
     })
     expect(el.innerHTML).toBe('<testa></testa>')
     vm.ok = true
-    _.nextTick(function () {
+    nextTick(function () {
       expect(el.innerHTML).toBe('<testa><testb>hello</testb></testa>')
       done()
     })
@@ -397,4 +381,52 @@ describe('Slot Distribution', function () {
     expect(el.textContent).toBe('hihihi')
   })
 
+  it('fallback for slot with v-if', function (done) {
+    var vm = new Vue({
+      el: el,
+      data: {
+        ok: false,
+        msg: 'inserted'
+      },
+      template: '<div><comp><div v-if="ok">{{ msg }}</div></comp></div>',
+      components: {
+        comp: {
+          data: function () {
+            return { msg: 'fallback' }
+          },
+          template: '<div><slot>{{ msg }}</slot></div>'
+        }
+      }
+    })
+    expect(el.textContent).toBe('fallback')
+    vm.ok = true
+    nextTick(function () {
+      expect(el.textContent).toBe('inserted')
+      done()
+    })
+  })
+
+  // #2435
+  it('slot inside template', function () {
+    var vm = new Vue({
+      el: el,
+      template: '<test>hi</test>',
+      components: {
+        test: {
+          data: function () {
+            return { ok: true }
+          },
+          template:
+            '<div>' +
+              '<template v-if="ok">' +
+                '<template v-if="ok">' +
+                  '<slot>{{ msg }}</slot>' +
+                '</template>' +
+              '</template>' +
+            '</div>'
+        }
+      }
+    })
+    expect(vm.$el.textContent).toBe('hi')
+  })
 })

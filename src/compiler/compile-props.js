@@ -9,11 +9,9 @@ import {
   getBindAttr,
   isLiteral,
   initProp,
-  hasOwn,
   toBoolean,
   toNumber,
-  stripQuotes,
-  isObject
+  stripQuotes
 } from '../util/index'
 
 const propBindingModes = config._propBindingModes
@@ -115,11 +113,28 @@ export function compileProps (el, propOptions) {
     } else if ((value = getAttr(el, attr)) !== null) {
       // has literal binding!
       prop.raw = value
-    } else if (options.required) {
-      // warn missing required
-      process.env.NODE_ENV !== 'production' && warn(
-        'Missing required prop: ' + name
+    } else if (process.env.NODE_ENV !== 'production') {
+      // check possible camelCase prop usage
+      var lowerCaseName = path.toLowerCase()
+      value = /[A-Z\-]/.test(name) && (
+        el.getAttribute(lowerCaseName) ||
+        el.getAttribute(':' + lowerCaseName) ||
+        el.getAttribute('v-bind:' + lowerCaseName) ||
+        el.getAttribute(':' + lowerCaseName + '.once') ||
+        el.getAttribute('v-bind:' + lowerCaseName + '.once') ||
+        el.getAttribute(':' + lowerCaseName + '.sync') ||
+        el.getAttribute('v-bind:' + lowerCaseName + '.sync')
       )
+      if (value) {
+        warn(
+          'Possible usage error for prop `' + lowerCaseName + '` - ' +
+          'did you mean `' + attr + '`? HTML is case-insensitive, remember to use ' +
+          'kebab-case for props in templates.'
+        )
+      } else if (options.required) {
+        // warn missing required
+        warn('Missing required prop: ' + name)
+      }
     }
     // push prop
     props.push(prop)
@@ -148,28 +163,25 @@ function makePropsLinkFn (props) {
       vm._props[path] = prop
       if (raw === null) {
         // initialize absent prop
-        initProp(vm, prop, getDefault(vm, options))
+        initProp(vm, prop, undefined)
       } else if (prop.dynamic) {
         // dynamic prop
-        if (vm._context) {
-          if (prop.mode === propBindingModes.ONE_TIME) {
-            // one time binding
-            value = (scope || vm._context).$get(prop.parentPath)
-            initProp(vm, prop, value)
-          } else {
+        if (prop.mode === propBindingModes.ONE_TIME) {
+          // one time binding
+          value = (scope || vm._context || vm).$get(prop.parentPath)
+          initProp(vm, prop, value)
+        } else {
+          if (vm._context) {
             // dynamic binding
             vm._bindDir({
               name: 'prop',
               def: propDef,
               prop: prop
             }, null, null, scope) // el, host, scope
+          } else {
+            // root instance
+            initProp(vm, prop, vm.$get(prop.parentPath))
           }
-        } else {
-          process.env.NODE_ENV !== 'production' && warn(
-            'Cannot bind dynamic prop on a root instance' +
-            ' with no parent: ' + prop.name + '="' +
-            raw + '"'
-          )
         }
       } else if (prop.optimizedLiteral) {
         // optimized literal, cast it and just set once
@@ -188,35 +200,4 @@ function makePropsLinkFn (props) {
       }
     }
   }
-}
-
-/**
- * Get the default value of a prop.
- *
- * @param {Vue} vm
- * @param {Object} options
- * @return {*}
- */
-
-function getDefault (vm, options) {
-  // no default, return undefined
-  if (!hasOwn(options, 'default')) {
-    // absent boolean value defaults to false
-    return options.type === Boolean
-      ? false
-      : undefined
-  }
-  var def = options.default
-  // warn against non-factory defaults for Object & Array
-  if (isObject(def)) {
-    process.env.NODE_ENV !== 'production' && warn(
-      'Object/Array as default prop values will be shared ' +
-      'across multiple instances. Use a factory function ' +
-      'to return the default value instead.'
-    )
-  }
-  // call factory function for non-Function types
-  return typeof def === 'function' && options.type !== Function
-    ? def.call(vm)
-    : def
 }

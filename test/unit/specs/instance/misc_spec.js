@@ -1,9 +1,7 @@
 var Vue = require('src')
 
 describe('misc', function () {
-
   describe('_applyFilters', function () {
-
     var vm = new Vue({
       data: {
         msg: 'BBB'
@@ -25,10 +23,6 @@ describe('misc', function () {
       }
     })
 
-    beforeEach(function () {
-      spyWarns()
-    })
-
     it('read', function () {
       var filters = [
         { name: 'read', args: [{dynamic: false, value: 'AAA'}] },
@@ -48,7 +42,7 @@ describe('misc', function () {
 
     it('warn not found', function () {
       vm._applyFilters('what', null, [{name: 'wtf'}])
-      expect(hasWarned('Failed to resolve filter')).toBe(true)
+      expect('Failed to resolve filter').toHaveBeenWarned()
     })
   })
 })

@@ -6,7 +6,6 @@ var publicDirectives = require('src/directives/public')
 var internalDirectives = require('src/directives/internal')
 
 describe('Compile', function () {
-
   var vm, el, data, directiveBind, directiveTeardown
   beforeEach(function () {
     // We mock vms here so we can assert what the generated
@@ -28,6 +27,9 @@ describe('Compile', function () {
           _teardown: directiveTeardown
         })
       },
+      $get: function (exp) {
+        return (new Vue()).$get(exp)
+      },
       $eval: function (value) {
         return data[value]
       },
@@ -44,7 +46,6 @@ describe('Compile', function () {
     spyOn(vm, '_bindDir').and.callThrough()
     spyOn(vm, '$eval').and.callThrough()
     spyOn(vm, '$interpolate').and.callThrough()
-    spyWarns()
   })
 
   it('normal directives', function () {
@@ -277,6 +278,7 @@ describe('Compile', function () {
       testOneTime: null,
       optimizeLiteral: null,
       optimizeLiteralStr: null,
+      optimizeLiteralNegativeNumber: null,
       literalWithFilter: null
     }
     el.innerHTML = '<div ' +
@@ -285,6 +287,7 @@ describe('Compile', function () {
       'test-boolean ' +
       ':optimize-literal="1" ' +
       ':optimize-literal-str="\'true\'"' +
+      ':optimize-literal-negative-number="-1"' +
       ':test-two-way.sync="a" ' +
       ':two-way-warn.sync="a + 1" ' +
       ':test-one-time.once="a" ' +
@@ -303,6 +306,8 @@ describe('Compile', function () {
     expect(vm._data.optimizeLiteral).toBe(1)
     expect(vm.optimizeLiteralStr).toBe('true')
     expect(vm._data.optimizeLiteralStr).toBe('true')
+    expect(vm.optimizeLiteralNegativeNumber).toBe(-1)
+    expect(vm._data.optimizeLiteralNegativeNumber).toBe(-1)
     // one time
     expect(vm.testOneTime).toBe('from parent: a')
     expect(vm._data.testOneTime).toBe('from parent: a')
@@ -321,7 +326,7 @@ describe('Compile', function () {
     expect(prop.parentPath).toBe('a')
     expect(prop.mode).toBe(bindingModes.TWO_WAY)
     // two way warn
-    expect(hasWarned('non-settable parent path')).toBe(true)
+    expect('non-settable parent path').toHaveBeenWarned()
     // literal with filter
     args = vm._bindDir.calls.argsFor(3)
     prop = args[0].prop
@@ -337,11 +342,11 @@ describe('Compile', function () {
     var context = vm._context
     vm._context = null
     el.setAttribute('v-bind:a', '"hi"')
-    el.setAttribute(':b', 'hi')
+    el.setAttribute(':b', '[1,2,3]')
     compiler.compileAndLinkProps(vm, el, { a: null, b: null })
     expect(vm._bindDir.calls.count()).toBe(0)
     expect(vm._data.a).toBe('hi')
-    expect(hasWarned('Cannot bind dynamic prop on a root')).toBe(true)
+    expect(vm._data.b.join(',')).toBe('1,2,3')
     // restore parent mock
     vm._context = context
   })
@@ -579,7 +584,7 @@ describe('Compile', function () {
       }
     })
     expect(el.innerHTML).toBe('<div></div>')
-    expect(hasWarned('attribute interpolation is not allowed in Vue.js directives')).toBe(true)
+    expect('attribute interpolation is not allowed in Vue.js directives').toHaveBeenWarned()
   })
 
   it('attribute interpolation: warn mixed usage with v-bind', function () {
@@ -590,7 +595,7 @@ describe('Compile', function () {
         a: 'hi'
       }
     })
-    expect(hasWarned('Do not mix mustache interpolation and v-bind')).toBe(true)
+    expect('Do not mix mustache interpolation and v-bind').toHaveBeenWarned()
   })
 
   it('warn directives on fragment instances', function () {
@@ -606,10 +611,10 @@ describe('Compile', function () {
       }
     })
     expect(getWarnCount()).toBe(1)
-    expect(
-      hasWarned('Attributes "id", "class" are ignored on component <test>', true) ||
-      hasWarned('Attributes "class", "id" are ignored on component <test>')
-    ).toBe(true)
+    expect([
+      'Attributes "id", "class" are ignored on component <test>',
+      'Attributes "class", "id" are ignored on component <test>'
+    ]).toHaveBeenWarned()
   })
 
   it('should compile component container directives using correct context', function () {
@@ -623,9 +628,22 @@ describe('Compile', function () {
         }
       },
       template: '<comp v-test></comp>',
-      components: { comp: { template: '<div></div>'}}
+      components: { comp: { template: '<div></div>' }}
     })
     expect(el.textContent).toBe('worked!')
+    expect(getWarnCount()).toBe(0)
+  })
+
+  it('allow custom terminal directive', function () {
+    Vue.mixin({}) // #2366 conflict with custom terminal directive
+    Vue.compiler.terminalDirectives.push('foo')
+    Vue.directive('foo', {})
+
+    new Vue({
+      el: el,
+      template: '<div v-foo></div>'
+    })
+
     expect(getWarnCount()).toBe(0)
   })
 })

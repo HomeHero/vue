@@ -139,12 +139,12 @@ export default {
     // actual mount
     this.unbuild(true)
     var self = this
-    var activateHook = this.Component.options.activate
+    var activateHooks = this.Component.options.activate
     var cached = this.getCached()
     var newComponent = this.build()
-    if (activateHook && !cached) {
+    if (activateHooks && !cached) {
       this.waitingFor = newComponent
-      activateHook.call(newComponent, function () {
+      callActivateHooks(activateHooks, newComponent, function () {
         if (self.waitingFor !== newComponent) {
           return
         }
@@ -267,6 +267,7 @@ export default {
     if (!child || this.keepAlive) {
       if (child) {
         // remove ref
+        child._inactive = true
         child._updateRef(true)
       }
       return
@@ -319,10 +320,8 @@ export default {
     var self = this
     var current = this.childVM
     // for devtool inspection
-    if (process.env.NODE_ENV !== 'production') {
-      if (current) current._inactive = true
-      target._inactive = false
-    }
+    if (current) current._inactive = true
+    target._inactive = false
     this.childVM = target
     switch (self.params.transitionMode) {
       case 'in-out':
@@ -355,6 +354,27 @@ export default {
         this.cache[key].$destroy()
       }
       this.cache = null
+    }
+  }
+}
+
+/**
+ * Call activate hooks in order (asynchronous)
+ *
+ * @param {Array} hooks
+ * @param {Vue} vm
+ * @param {Function} cb
+ */
+
+function callActivateHooks (hooks, vm, cb) {
+  var total = hooks.length
+  var called = 0
+  hooks[0].call(vm, next)
+  function next () {
+    if (++called >= total) {
+      cb()
+    } else {
+      hooks[called].call(vm, next)
     }
   }
 }

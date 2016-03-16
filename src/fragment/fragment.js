@@ -37,7 +37,7 @@ export default function Fragment (linker, vm, frag, host, scope, parentFrag) {
   var single = this.single =
     frag.childNodes.length === 1 &&
     // do not go single mode if the only node is an anchor
-    !(frag.childNodes[0].__vue_anchor)
+    !(frag.childNodes[0].__v_anchor)
   if (single) {
     this.node = frag.childNodes[0]
     this.before = singleBefore
@@ -51,7 +51,7 @@ export default function Fragment (linker, vm, frag, host, scope, parentFrag) {
     this.before = multiBefore
     this.remove = multiRemove
   }
-  this.node.__vfrag__ = this
+  this.node.__v_frag = this
 }
 
 /**
@@ -157,11 +157,11 @@ Fragment.prototype.beforeRemove = function () {
     this.childFrags[i].beforeRemove(false)
   }
   for (i = 0, l = this.children.length; i < l; i++) {
-   // Call destroy for all contained instances,
-   // with remove:false and defer:true.
-   // Defer is necessary because we need to
-   // keep the children to call detach hooks
-   // on them.
+    // Call destroy for all contained instances,
+    // with remove:false and defer:true.
+    // Defer is necessary because we need to
+    // keep the children to call detach hooks
+    // on them.
     this.children[i].$destroy(false, true)
   }
   var dirs = this.unlink.dirs
@@ -181,7 +181,7 @@ Fragment.prototype.destroy = function () {
   if (this.parentFrag) {
     this.parentFrag.childFrags.$remove(this)
   }
-  this.node.__vfrag__ = null
+  this.node.__v_frag = null
   this.unlink()
 }
 
@@ -192,7 +192,7 @@ Fragment.prototype.destroy = function () {
  */
 
 function attach (child) {
-  if (!child._isAttached) {
+  if (!child._isAttached && inDoc(child.$el)) {
     child._callHook('attached')
   }
 }
@@ -204,7 +204,7 @@ function attach (child) {
  */
 
 function detach (child) {
-  if (child._isAttached) {
+  if (child._isAttached && !inDoc(child.$el)) {
     child._callHook('detached')
   }
 }

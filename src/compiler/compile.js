@@ -15,8 +15,7 @@ import {
   findRef,
   defineReactive,
   assertAsset,
-  getAttr,
-  hasBindAttr
+  getAttr
 } from '../util/index'
 
 // special binding prefixes
@@ -99,6 +98,15 @@ export function compile (el, options, partial) {
  */
 
 function linkAndCapture (linker, vm) {
+  /* istanbul ignore if */
+  if (process.env.NODE_ENV === 'production') {
+    // reset directives before every capture in production
+    // mode, so that when unlinking we don't need to splice
+    // them out (which turns out to be a perf hit).
+    // they are kept in development mode because they are
+    // useful for Vue's own tests.
+    vm._directives = []
+  }
   var originalDirCount = vm._directives.length
   linker()
   var dirs = vm._directives.slice(originalDirCount)
@@ -161,7 +169,7 @@ function teardownDirs (vm, dirs, destroying) {
   var i = dirs.length
   while (i--) {
     dirs[i]._teardown()
-    if (!destroying) {
+    if (process.env.NODE_ENV !== 'production' && !destroying) {
       vm._directives.$remove(dirs[i])
     }
   }
@@ -517,11 +525,8 @@ function makeChildLinkFn (linkFns) {
 
 function checkElementDirectives (el, options) {
   var tag = el.tagName.toLowerCase()
-  if (commonTagRE.test(tag)) return
-  // special case: give named slot a higher priority
-  // than unnamed slots
-  if (tag === 'slot' && hasBindAttr(el, 'name')) {
-    tag = '_namedSlot'
+  if (commonTagRE.test(tag)) {
+    return
   }
   var def = resolveAsset(options, 'elementDirectives', tag)
   if (def) {
@@ -618,7 +623,8 @@ function makeTerminalNodeLinkFn (el, dirName, value, options, def) {
     filters: parsed.filters,
     raw: value,
     // either an element directive, or if/for
-    def: def || publicDirectives[dirName]
+    // #2366 or custom terminal directive
+    def: def || resolveAsset(options, 'directives', dirName)
   }
   // check ref for v-for and router-view
   if (dirName === 'for' || dirName === 'router-view') {

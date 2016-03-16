@@ -1,11 +1,9 @@
 var Vue = require('src')
 
 describe('prop', function () {
-
   var el
   beforeEach(function () {
     el = document.createElement('div')
-    spyWarns()
   })
 
   it('one way binding', function (done) {
@@ -151,7 +149,7 @@ describe('prop', function () {
         }
       }
     })
-    expect(hasWarned('Cannot bind two-way prop with non-settable parent path')).toBe(true)
+    expect('Cannot bind two-way prop with non-settable parent path').toHaveBeenWarned()
     expect(el.innerHTML).toBe('<test>BB</test>')
     vm.b = 'BB'
     Vue.nextTick(function () {
@@ -182,7 +180,7 @@ describe('prop', function () {
         }
       }
     })
-    expect(hasWarned('expects a two-way binding type')).toBe(true)
+    expect('expects a two-way binding type').toHaveBeenWarned()
   })
 
   it('warn $data as prop', function () {
@@ -198,7 +196,7 @@ describe('prop', function () {
         }
       }
     })
-    expect(hasWarned('Do not use $data as prop')).toBe(true)
+    expect('Do not use $data as prop').toHaveBeenWarned()
   })
 
   it('warn invalid keys', function () {
@@ -211,14 +209,14 @@ describe('prop', function () {
         }
       }
     })
-    expect(hasWarned('Invalid prop key')).toBe(true)
+    expect('Invalid prop key').toHaveBeenWarned()
   })
 
   it('warn props with no el option', function () {
     new Vue({
       props: ['a']
     })
-    expect(hasWarned('Props will not be compiled if no `el`')).toBe(true)
+    expect('Props will not be compiled if no `el`').toHaveBeenWarned()
   })
 
   it('warn object/array default values', function () {
@@ -235,7 +233,7 @@ describe('prop', function () {
         }
       }
     })
-    expect(hasWarned('Use a factory function to return the default value')).toBe(true)
+    expect('Use a factory function to return the default value').toHaveBeenWarned()
     expect(getWarnCount()).toBe(2)
   })
 
@@ -294,8 +292,7 @@ describe('prop', function () {
   })
 
   describe('assertions', function () {
-
-    function makeInstance (value, type, validator, coerce) {
+    function makeInstance (value, type, validator, coerce, required) {
       return new Vue({
         el: document.createElement('div'),
         template: '<test :test="val"></test>',
@@ -308,7 +305,8 @@ describe('prop', function () {
               test: {
                 type: type,
                 validator: validator,
-                coerce: coerce
+                coerce: coerce,
+                required: required
               }
             }
           }
@@ -320,42 +318,42 @@ describe('prop', function () {
       makeInstance('hello', String)
       expect(getWarnCount()).toBe(0)
       makeInstance(123, String)
-      expect(hasWarned('Expected String')).toBe(true)
+      expect('Expected String').toHaveBeenWarned()
     })
 
     it('number', function () {
       makeInstance(123, Number)
       expect(getWarnCount()).toBe(0)
       makeInstance('123', Number)
-      expect(hasWarned('Expected Number')).toBe(true)
+      expect('Expected Number').toHaveBeenWarned()
     })
 
     it('boolean', function () {
       makeInstance(true, Boolean)
       expect(getWarnCount()).toBe(0)
       makeInstance('123', Boolean)
-      expect(hasWarned('Expected Boolean')).toBe(true)
+      expect('Expected Boolean').toHaveBeenWarned()
     })
 
     it('function', function () {
       makeInstance(function () {}, Function)
       expect(getWarnCount()).toBe(0)
       makeInstance(123, Function)
-      expect(hasWarned('Expected Function')).toBe(true)
+      expect('Expected Function').toHaveBeenWarned()
     })
 
     it('object', function () {
       makeInstance({}, Object)
       expect(getWarnCount()).toBe(0)
       makeInstance([], Object)
-      expect(hasWarned('Expected Object')).toBe(true)
+      expect('Expected Object').toHaveBeenWarned()
     })
 
     it('array', function () {
       makeInstance([], Array)
       expect(getWarnCount()).toBe(0)
       makeInstance({}, Array)
-      expect(hasWarned('Expected Array')).toBe(true)
+      expect('Expected Array').toHaveBeenWarned()
     })
 
     it('custom constructor', function () {
@@ -363,7 +361,7 @@ describe('prop', function () {
       makeInstance(new Class(), Class)
       expect(getWarnCount()).toBe(0)
       makeInstance({}, Class)
-      expect(hasWarned('Expected custom type')).toBe(true)
+      expect('Expected custom type').toHaveBeenWarned()
     })
 
     it('custom validator', function () {
@@ -374,7 +372,7 @@ describe('prop', function () {
       makeInstance(123, null, function (v) {
         return v === 234
       })
-      expect(hasWarned('custom validator check failed')).toBe(true)
+      expect('custom validator check failed').toHaveBeenWarned()
     })
 
     it('type check + custom validator', function () {
@@ -385,11 +383,11 @@ describe('prop', function () {
       makeInstance(123, Number, function (v) {
         return v === 234
       })
-      expect(hasWarned('custom validator check failed')).toBe(true)
+      expect('custom validator check failed').toHaveBeenWarned()
       makeInstance(123, String, function (v) {
         return v === 123
       })
-      expect(hasWarned('Expected String')).toBe(true)
+      expect('Expected String').toHaveBeenWarned()
     })
 
     it('type check + coerce', function () {
@@ -415,9 +413,24 @@ describe('prop', function () {
           }
         }
       })
-      expect(hasWarned('Missing required prop')).toBe(true)
+      expect('Missing required prop').toHaveBeenWarned()
     })
 
+    it('optional with type + null/undefined', function () {
+      makeInstance(undefined, String)
+      expect(getWarnCount()).toBe(0)
+      makeInstance(null, String)
+      expect(getWarnCount()).toBe(0)
+    })
+
+    it('required with type + null/undefined', function () {
+      makeInstance(undefined, String, null, null, true)
+      expect(getWarnCount()).toBe(1)
+      expect('Expected String').toHaveBeenWarned()
+      makeInstance(null, Boolean, null, null, true)
+      expect(getWarnCount()).toBe(2)
+      expect('Expected Boolean').toHaveBeenWarned()
+    })
   })
 
   it('alternative syntax', function () {
@@ -443,8 +456,8 @@ describe('prop', function () {
         }
       }
     })
-    expect(hasWarned('Missing required prop')).toBe(true)
-    expect(hasWarned('Expected Number')).toBe(true)
+    expect('Missing required prop').toHaveBeenWarned()
+    expect('Expected Number').toHaveBeenWarned()
     expect(el.textContent).toBe('AAA')
   })
 
@@ -473,8 +486,8 @@ describe('prop', function () {
         }
       }
     })
-    expect(hasWarned('Missing required prop')).toBe(true)
-    expect(hasWarned('Expected Number')).toBe(true)
+    expect('Missing required prop').toHaveBeenWarned()
+    expect('Expected Number').toHaveBeenWarned()
     expect(el.textContent).toBe('AAA')
   })
 
@@ -577,7 +590,7 @@ describe('prop', function () {
         comp: Comp
       }
     })
-    expect(hasWarned('already defined as a prop')).toBe(true)
+    expect('already defined as a prop').toHaveBeenWarned()
   })
 
   it('should not warn data fields already defined as a prop if it is from instantiation call', function () {
@@ -650,5 +663,39 @@ describe('prop', function () {
     })
     expect(vm.$refs.child.propA).toBe(true)
     expect(vm.$refs.child.propB).toBe(false)
+  })
+
+  it('detect possible camelCase prop usage', function () {
+    new Vue({
+      el: el,
+      template: '<comp propA="true" :propB="true" v-bind:propC.sync="true"></comp>',
+      components: {
+        comp: {
+          props: ['propA', 'propB', 'prop-c']
+        }
+      }
+    })
+    expect(getWarnCount()).toBe(3)
+    expect('did you mean `prop-a`').toHaveBeenWarned()
+    expect('did you mean `prop-b`').toHaveBeenWarned()
+    expect('did you mean `prop-c`').toHaveBeenWarned()
+  })
+
+  it('should use default for undefined values', function () {
+    var vm = new Vue({
+      el: el,
+      template: '<comp :a="a"></comp>',
+      components: {
+        comp: {
+          template: '{{a}}',
+          props: {
+            a: {
+              default: 1
+            }
+          }
+        }
+      }
+    })
+    expect(vm.$el.textContent).toBe('1')
   })
 })
